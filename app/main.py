@@ -9,9 +9,31 @@ from app.ai.agent.chat_agent import ChatAgent
 from app.ai.agent.exam_agent.manager_agent import ManagerAgent
 from app.ai.agent.router_agent import RouterAgent
 from contextlib import asynccontextmanager
+
+
+def clear_redis_state():
+    """启动时清空上次运行遗留的会话状态（窗口记忆/画像/面试/验证码）"""
+    import redis
+    try:
+        client = redis.StrictRedis(host="localhost", port=6379, db=0)
+        for pattern in ("chat_widow:*", "chat_profile:*", "session:*", "exam:*", "code:*"):
+            cursor = 0
+            while True:
+                cursor, keys = client.scan(cursor=cursor, match=pattern, count=200)
+                if keys:
+                    client.delete(*keys)
+                if cursor == 0:
+                    break
+        print("已清空上一次运行的 Redis 会话状态")
+    except Exception as e:
+        print(f"清空 Redis 状态失败（Redis 未启动时可忽略）: {e}")
+
+
 #配置异步的上下文管理器
 @asynccontextmanager
 async def  contenttextManger(app:FastAPI):
+    #启动时清空上次运行遗留的会话状态
+    clear_redis_state()
     #创建聊天智能体
     app.state.chat_agent = ChatAgent()
     #创建模拟面试智能体

@@ -3,12 +3,16 @@ import asyncio
 from app.ai.agent.exam_agent.intent_agent import IntentAgent
 from app.ai.agent.exam_agent.question_agent import QuestionAgent
 from app.ai.agent.exam_agent.evaluation_agent import EvalutionAgent
+from app.ai.agent.exam_agent.answer_agent import AnswerAgent
 import redis
 import json
 """
 面试主管智能体，负责这个面试的所有流程，包括出题，面试，评价
 """
 class ManagerAgent:
+    #退出面试的关键词
+    EXIT_KEYWORDS = {"退出面试", "结束面试"}
+
     def __init__(self):
         #初始化意图智能体
         self.intent_agent = IntentAgent()
@@ -16,6 +20,8 @@ class ManagerAgent:
         self.question_agent = QuestionAgent()
         #初始化评价智能题
         self.eva_agent = EvalutionAgent()
+        #初始化答案解析智能体
+        self.answer_agent = AnswerAgent()
         #创建redis链接对象
         self.client = redis.StrictRedis(host="localhost",port=6379,db=0)
         #实例化i
@@ -71,6 +77,12 @@ class ManagerAgent:
         self.save_session(user_id,session)
     #聊天
     async def chat(self,question,user_id):
+        #-----------判断是否退出面试-----------
+        if question.strip() in self.EXIT_KEYWORDS:
+            self.client.delete(f"session:{user_id}")
+            self.client.delete(f"exam:{user_id}")
+            yield "面试已结束，感谢参与！"
+            return
         #加载会话
         session = self.load_session(user_id)
         #-----------判断是否是第一次进入面试---------------
@@ -120,17 +132,23 @@ class ManagerAgent:
                 # 更新session
                 self.save_session(user_id, session)
                 yield "\n所有题目完成，开始评价\n"
+        #-------------------答疑追问-------------------------------
+        elif session["state"] == "follow_up":
+            yield "\n正在解答...\n"
+            context=f"题目列表:{session['questions']},正确答案列表:{session['sure_answer']},用户答案列表:{session['user_answer']}"
+            async for rs in self.answer_agent.chat(context, question):
+                yield rs
+            yield "\n\n（提示：输入“退出面试”或“结束面试”可结束本次面试）\n"
         #---------------------评价智能题------------------------
         if session["state"] =="eva":
                yield "\n进入评价\n"
                data=f"问题列表:{session['questions']},用户答案列表:{session["user_answer"]},正确答案列表：{session["sure_answer"]}"
                async for rs in self.eva_agent.chat(data):
                    yield rs
-               #清除状态机
-               self.client.delete(f"session:{user_id}")
-               #标识模拟考试结束，删除考试标识
-               key = f'exam:{user_id}'
-               self.client.delete(key)
+               #评价完成后进入答疑环节，保留会话以便用户追问
+               session["state"] = "follow_up"
+               self.save_session(user_id, session)
+               yield "\n\n--- 评分完成，进入答疑环节 ---\n你可以继续追问刚才题目的答案和解析，例如：“第一题的答案是什么？”、“给我解析一下HashMap那道题”。输入“退出面试”即可结束。\n"
 
 if __name__ =="__main__":
     async def main():

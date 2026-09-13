@@ -285,7 +285,7 @@
         <!-- 顶部导航 -->
         <div class="chat-header">
             <div class="logo-icon">AI</div>
-            <div class="system-name">智能AI聊天助手</div>
+            <div class="system-name">智汇面AI智能平台</div>
             <div style="position: fixed;right: 20px">
                 <button class="send-btn" type="button" @click="clearHistory">清空对话</button>
                 <button class="send-btn" type="button" @click="exit">退出登录</button>
@@ -379,8 +379,11 @@
             mounted() {
 
                  //获取用户登录的信息
-                 const userId = localStorage.getItem("userId");
-                 const sessionId = localStorage.getItem("sessionId");
+                 //迁移清理：清掉旧版本 localStorage 遗留的登录态，避免缓存导致跳转死循环
+                 localStorage.removeItem("userId");
+                 localStorage.removeItem("sessionId");
+                 const userId = sessionStorage.getItem("userId");
+                 const sessionId = sessionStorage.getItem("sessionId");
                  //把 userId值传
                  this.userId = userId;
                  this.sessionId = sessionId;
@@ -457,7 +460,8 @@
                 },
 
                 exit(){//退出登录函数
-                    localStorage.removeItem("userId");
+                    sessionStorage.removeItem("userId");
+                    sessionStorage.removeItem("sessionId");
                     window.location.href="/static/login.html";
                 },
                 // 获取当前格式化时间
