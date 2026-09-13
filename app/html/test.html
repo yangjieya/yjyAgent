@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+     <script src="https://cdn.jsdelivr.net/npm/vue@2.7.14/dist/vue.js"></script>
+</head>
+<body>
+    <div id="app">
+        <input  type="text" v-model="info">
+        <button type="button" @click="send">发送</button>
+        <div>{{result}}</div>
+    </div>
+</body>
+<script>
+      new Vue({
+          el:"#app",
+          data:{
+              info:"",//发送信息
+              result:"",//接收信息
+              w:null,//websocket对象
+          },
+          mounted() {
+                      //创建一个websocket 协议
+                  this.w = new WebSocket("ws://localhost:8000/test");
+                  //监听开启链接事件
+                  this.w.onopen = function (event) {
+                      console.log("链接成功");
+                  }
+                  //监听信息接收事件
+                  const self = this;
+                  this.w.onmessage =function (event){
+                      self.result = event.data;
+                  }
+          },
+          methods:{
+              send() { //发送
+                 this.w.send(this.info);
+              }
+          }
+      })
+
+</script>
+</html>
